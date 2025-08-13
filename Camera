@@ -1,0 +1,179 @@
+# Create a complete HTML file that opens the front-facing camera (selfie) and provides a fallback to the native camera picker.
+# The page includes:
+# - A big button to start the camera via getUserMedia (front camera).
+# - Live preview (video) and a "capture" button to take a photo.
+# - Download/share of the captured photo.
+# - A fallback that triggers the native camera using an <input type="file" accept="image/*" capture="user"> if getUserMedia fails.
+# - Kurdish (Kurmanji/Sorani-leaning) UI strings per user's language.
+#
+# The file will be saved to /mnt/data/camera_selfie_link.html
+
+html = r"""<!DOCTYPE html>
+<html lang="ku">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>📷 کەمێرای دواوە</title>
+<style>
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+    margin: 0;
+    padding: 16px;
+    line-height: 1.5;
+    direction: rtl;
+    background: #f7f7f7;
+  }
+  .card {
+    max-width: 720px;
+    margin: 0 auto;
+    background: #fff;
+    border-radius: 12px;
+    padding: 16px;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.08);
+  }
+  h1 { font-size: 20px; margin: 0 0 12px; }
+  p { margin: 8px 0 16px; }
+  button, a.btn {
+    display: inline-block;
+    padding: 12px 16px;
+    border-radius: 10px;
+    border: 0;
+    text-decoration: none;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 16px;
+    margin: 6px 4px 0 4px;
+  }
+  .primary { background: #222; color: #fff; }
+  .ghost { background: #efefef; color: #222; }
+  video, canvas, img.preview {
+    width: 100%;
+    max-height: 60vh;
+    background: #000;
+    border-radius: 12px;
+    margin-top: 10px;
+    object-fit: contain;
+  }
+  .row { margin-top: 10px; display: flex; gap: 8px; flex-wrap: wrap; }
+  .note {
+    font-size: 13px; color: #555; background: #fafafa; border: 1px dashed #ddd;
+    padding: 10px; border-radius: 8px; margin-top: 10px;
+  }
+</style>
+</head>
+<body>
+  <div class="card">
+    <h1>📷 کردنەوەی کەمێرای دواوە</h1>
+    <p>کرتە لەم دوگمەیە بکە بۆ کردنەوەی کەمێرای دواوە (selfie). ئەم پەڕەیە باشترە لەسەر HTTPS و لە ناو براوسەرێکدا کە پشتیوانی <code>getUserMedia</code> دەکات.</p>
+    <div class="row">
+      <button id="openBtn" class="primary">📸 دەست پێ بکە بە کەمێرا</button>
+      <button id="switchBtn" class="ghost" title="گۆڕینی لاپەڕەی کەمێرا">🔁 گۆڕینی پێش/دواوە</button>
+      <button id="stopBtn" class="ghost">⛔ وەستاندن</button>
+    </div>
+
+    <video id="video" autoplay playsinline muted></video>
+    <div class="row">
+      <button id="captureBtn" class="primary">🖼️ وێنە وەرگرە</button>
+      <a id="downloadLink" class="ghost btn" download="selfie.jpg" href="#" style="display:none;">⬇️ داگرتنی وێنە</a>
+    </div>
+    <canvas id="canvas" style="display:none;"></canvas>
+    <img id="photo" class="preview" alt="وێنەی وەرگیراو" />
+
+    <div class="note">
+      ئەگەر کەمێرا نەکرا بەکار، دوگمەی خوارەوە بەکاربهێنە بۆ کردنەوەی ئەپ/هاوپەیوەندی کەمێرای مۆبایل:
+      <div class="row">
+        <label for="fallbackInput" class="btn ghost">📷 فۆتۆ لە ناو ئەپەکە</label>
+        <input id="fallbackInput" type="file" accept="image/*" capture="user" style="display:none;" />
+      </div>
+    </div>
+  </div>
+
+<script>
+(function() {
+  const video = document.getElementById('video');
+  const canvas = document.getElementById('canvas');
+  const photo = document.getElementById('photo');
+  const openBtn = document.getElementById('openBtn');
+  const stopBtn = document.getElementById('stopBtn');
+  const captureBtn = document.getElementById('captureBtn');
+  const downloadLink = document.getElementById('downloadLink');
+  const switchBtn = document.getElementById('switchBtn');
+  const fallbackInput = document.getElementById('fallbackInput');
+
+  let currentStream = null;
+  let facingMode = 'user'; // 'user' = front camera
+
+  async function startCamera() {
+    stopCamera();
+    try {
+      const constraints = { video: { facingMode: { ideal: facingMode } }, audio: false };
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      currentStream = stream;
+      video.srcObject = stream;
+    } catch (err) {
+      console.warn('getUserMedia failed, falling back to file input:', err);
+      // trigger fallback
+      fallbackInput.click();
+    }
+  }
+
+  function stopCamera() {
+    if (currentStream) {
+      currentStream.getTracks().forEach(t => t.stop());
+      currentStream = null;
+    }
+  }
+
+  function capturePhoto() {
+    if (!video.srcObject) return;
+    const vw = video.videoWidth || 1280;
+    const vh = video.videoHeight || 720;
+    canvas.width = vw;
+    canvas.height = vh;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(video, 0, 0, vw, vh);
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.95);
+    photo.src = dataUrl;
+    downloadLink.href = dataUrl;
+    downloadLink.style.display = 'inline-block';
+  }
+
+  openBtn.addEventListener('click', startCamera);
+  stopBtn.addEventListener('click', () => {
+    stopCamera();
+    downloadLink.style.display = 'none';
+  });
+  captureBtn.addEventListener('click', capturePhoto);
+
+  switchBtn.addEventListener('click', async () => {
+    facingMode = (facingMode === 'user') ? 'environment' : 'user';
+    await startCamera();
+  });
+
+  fallbackInput.addEventListener('change', () => {
+    const file = fallbackInput.files && fallbackInput.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      photo.src = reader.result;
+      downloadLink.href = reader.result;
+      downloadLink.style.display = 'inline-block';
+    };
+    reader.readAsDataURL(file);
+  });
+
+  // Optional: try to start automatically on secure contexts
+  if (location.protocol === 'https:' && 'mediaDevices' in navigator) {
+    // Don't auto-start to avoid unexpected prompts; user clicks to start.
+  }
+})();
+</script>
+</body>
+</html>
+"""
+
+path = "/mnt/data/camera_selfie_link.html"
+with open(path, "w", encoding="utf-8") as f:
+    f.write(html)
+
+path
